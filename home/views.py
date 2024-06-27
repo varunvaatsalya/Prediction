@@ -1,29 +1,43 @@
-import pandas as pd
+import json
+import os
 from django.shortcuts import render
-from .forms import CSVUploadForm
+import pickle
+import numpy as np
 
-def upload_csv(request):
+
+model_path = os.path.join(os.path.dirname(__file__), 'model', 'model.pickle')
+with open(model_path, 'rb') as file:
+    model = pickle.load(file)
+
+
+json_path = os.path.join(os.path.dirname(__file__), 'columns.json')
+with open(json_path, 'r') as file:
+    columns_data = json.load(file)
+
+
+locations = columns_data['data_columns'][3:]
+
+def get_predict(request):
+    prediction = None
+
     if request.method == 'POST':
-        form = CSVUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            csv_file = request.FILES['file']
-            df = pd.read_excel(csv_file)
-            print("Columns in the DataFrame:", df.columns)
-            if 'Cust State' not in df.columns or 'DPD' not in df.columns:
-                return render(request, 'error.html', {'message': 'Required columns not found in the uploaded file'})
+        
+        location = request.POST.get('location')
+        sqft = float(request.POST.get('sqft'))
+        bath = int(request.POST.get('bath'))
+        bhk = int(request.POST.get('bhk'))
 
 
-            summary = df.groupby(['Cust State', 'DPD']).size().reset_index(name='Count')
-            summary = summary.rename(columns={'Cust State': 'State'})
+        price = predict_price(location, sqft, bath, bhk)
+        prediction = round(price, 3)
+    return render(request, 'home.html', {'locations': locations, 'prediction': prediction})
 
-
-            summary['Row_Number'] = summary.index + 1
-
-            context = {
-                'form': form,
-                'summary': summary.to_dict(orient='records')
-            }
-            return render(request, 'upload.html', context)
-    else:
-        form = CSVUploadForm()
-    return render(request, 'upload.html', {'form': form})
+def predict_price(location, sqft, bath, bhk):
+    loc_index = np.where(np.array(columns_data['data_columns']) == location)[0][0]
+    x = np.zeros(len(columns_data['data_columns']))
+    x[0] = sqft
+    x[1] = bath
+    x[2] = bhk
+    if loc_index >= 0:
+        x[loc_index] = 1
+    return model.predict([x])[0]

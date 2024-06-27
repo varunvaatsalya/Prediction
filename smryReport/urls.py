@@ -16,11 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from home.views import upload_csv
+from home.views import get_predict
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', upload_csv, name='upload_csv'),
+    path('', get_predict, name='get_predict'),
 
 
 ]
